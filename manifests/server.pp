@@ -191,7 +191,7 @@ define redis::server (
     hasrestart => true,
   }
 
-  monitor::port { "redis_tcp_${redis_port}":
+  monitor::port { "redis_${name}_tcp_${redis_port}":
     protocol => 'tcp',
     port     => $redis_port,
     target   => $redis::monitor_target,
@@ -200,7 +200,7 @@ define redis::server (
   }
 
   if $firewall_src != undef {
-    firewall::rule { "redis_tcp_${redis_port}":
+    firewall::rule { "redis_${name}_tcp_${redis_port}":
       source      => $firewall_src,
       port        => $redis_port,
       protocol    => 'tcp',
