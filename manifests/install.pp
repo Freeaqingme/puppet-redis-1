@@ -40,6 +40,11 @@ class redis::install (
           }
         }
       }
+      'FreeBSD': {
+        package { 'redis':
+          ensure => $redis_version
+        }
+      }
       default: {
         fail('The module does not support this OS.')
       }

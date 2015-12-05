@@ -136,14 +136,24 @@ define redis::server (
     /(Debian|Ubuntu)/                                          => 'redis/etc/init.d/debian_redis-server.erb',
     /(Fedora|RedHat|CentOS|OEL|OracleLinux|Amazon|Scientific)/ => 'redis/etc/init.d/redhat_redis-server.erb',
     /(SLES)/                                                   => 'redis/etc/init.d/sles_redis-server.erb',
+    /(FreeBSD)/                                                => 'redis/etc/init.d/freebsd_redis-server.erb',
     default                                                    => UNDEF,
+  }
+
+  $config_dir = $::operatingsystem ? {
+    /FreeBSD/ => '/usr/local/etc',
+    default   => '/etc',
+  }
+
+  $init_dir = $::operatingsystem ? {
+    /FreeBSD/ => '/usr/local/etc/rc.d',
+    default   => '/etc/init.d/',
   }
 
   $redis_2_6_or_greater = versioncmp($::redis::install::redis_version,'2.6') >= 0
 			or $::redis::install::redis_version == 'latest'
 
-  # redis conf file
-  file {"/etc/redis_${redis_name}.conf":
+  file {"${config_dir}/redis_${redis_name}.conf":
       ensure  => file,
       content => template('redis/etc/redis.conf.erb'),
       replace => $force_rewrite,
@@ -151,34 +161,22 @@ define redis::server (
       notify  => Service[$service_name],
   }
 
-  # startup script
-  file { "/etc/init.d/redis-server_${redis_name}":
-    ensure  => file,
-    mode    => '0755',
-    content => template($redis_init_script),
-    require => [
-      File["/etc/redis_${redis_name}.conf"],
-      File["${redis_dir}/redis_${redis_name}"]
-    ],
+  if ! $::redis::install::bool_use_systemd {
+    file { "${init_dir}/redis-server_${redis_name}":
+      ensure  => file,
+      mode    => '0755',
+      content => template($redis_init_script),
+      require => [
+        File["${config_dir}/redis_${redis_name}.conf"],
+        File["${redis_dir}/redis_${redis_name}"],
+      ],
+      before => Service[$service_name],
+    }
   }
 
   file { "${redis_dir}/redis_${redis_name}":
     ensure  => directory,
     require => Class['redis::install'],
-  }
-
-  # install and configure logrotate
-  if ! defined(Package['logrotate']) {
-    package { 'logrotate': ensure => installed; }
-  }
-
-  file { "/etc/logrotate.d/redis-server_${redis_name}":
-    ensure  => file,
-    content => template('redis/redis_logrotate.conf.erb'),
-    require => [
-      Package['logrotate'],
-      File["/etc/redis_${redis_name}.conf"],
-    ]
   }
 
   # manage redis service
@@ -187,6 +185,5 @@ define redis::server (
     enable     => $enabled,
     hasstatus  => true,
     hasrestart => true,
-    require    => File["/etc/init.d/redis-server_${redis_name}"]
   }
 }
