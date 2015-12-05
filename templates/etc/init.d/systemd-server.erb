@@ -1,0 +1,17 @@
+# File managed by Puppet
+
+[Unit]
+Description=Advanced key-value store
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/redis-server /etc/redis_%i.conf
+# ExecStop=/usr/bin/redis-cli shutdown
+Restart=always
+User=redis
+Group=redis
+
+[Install]
+WantedBy=multi-user.target
+

@@ -83,7 +83,7 @@
 #
 define redis::server (
   $redis_name              = $name,
-  $redis_memory            = '100mb',
+  $redis_memory            = '1024mb',
   $redis_ip                = '127.0.0.1',
   $redis_port              = 6379,
   $redis_usesocket         = false,
@@ -120,6 +120,17 @@ define redis::server (
   $force_rewrite           = false,
 ) {
 
+  include ::redis::install
+
+  $service_name = $::redis::install::bool_use_systemd ? {
+    true  => "redis-server@${redis_name}",
+    false => "redis-server_${redis_name}",
+  }
+
+  if $::redis::install::bool_use_systemd {
+    File["/lib/systemd/system/redis-server@.service"] -> Service[$service_name]
+  }
+
   $redis_install_dir = $::redis::install::redis_install_dir
   $redis_init_script = $::operatingsystem ? {
     /(Debian|Ubuntu)/                                          => 'redis/etc/init.d/debian_redis-server.erb',
@@ -127,15 +138,17 @@ define redis::server (
     /(SLES)/                                                   => 'redis/etc/init.d/sles_redis-server.erb',
     default                                                    => UNDEF,
   }
+
   $redis_2_6_or_greater = versioncmp($::redis::install::redis_version,'2.6') >= 0
+			or $::redis::install::redis_version == 'latest'
 
   # redis conf file
-  file {
-    "/etc/redis_${redis_name}.conf":
+  file {"/etc/redis_${redis_name}.conf":
       ensure  => file,
       content => template('redis/etc/redis.conf.erb'),
       replace => $force_rewrite,
-      require => Class['redis::install'];
+      require => Class['redis::install'],
+      notify  => Service[$service_name],
   }
 
   # startup script
@@ -147,18 +160,6 @@ define redis::server (
       File["/etc/redis_${redis_name}.conf"],
       File["${redis_dir}/redis_${redis_name}"]
     ],
-    notify  => Service["redis-server_${redis_name}"],
-  }
-
-  # path for persistent data
-  # If we specify a directory that's not default we need to pass it as hash
-  # and ensure that we do not have duplicate warning, when we have multiple
-  # redis Instances on one host
-  if ! defined(File[$redis_dir]) {
-    file { $redis_dir:
-      ensure  => directory,
-      require => Class['redis::install'],
-    }
   }
 
   file { "${redis_dir}/redis_${redis_name}":
@@ -181,7 +182,7 @@ define redis::server (
   }
 
   # manage redis service
-  service { "redis-server_${redis_name}":
+  service { $service_name:
     ensure     => $running,
     enable     => $enabled,
     hasstatus  => true,

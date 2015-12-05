@@ -19,8 +19,12 @@ class redis::install (
   $redis_build_dir   = $::redis::params::redis_build_dir,
   $redis_install_dir = $::redis::params::redis_install_dir,
   $redis_package     = $::redis::params::redis_install_package,
-  $download_tool     = $::redis::params::download_tool
+  $download_tool     = $::redis::params::download_tool,
+  $use_systemd       = $::redis::params::use_systemd,
 ) inherits redis {
+
+  $bool_use_systemd = str2bool($use_systemd)
+
   if ( $redis_package == true ) {
     case $::operatingsystem {
       'Debian', 'Ubuntu': {
@@ -131,4 +135,12 @@ class redis::install (
       redis_install_dir => $redis_install_dir,
     }
   }
+
+  if $bool_use_systemd {
+    file { "/lib/systemd/system/redis-server@.service":
+      ensure  => file,
+      content => template('redis/etc/init.d/systemd-server.erb'),
+    }
+  }
+
 }
