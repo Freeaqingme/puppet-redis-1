@@ -118,6 +118,10 @@ define redis::server (
   $repl_ping_slave_period  = 10,
   $save                    = [],
   $force_rewrite           = false,
+  $monitor                 = params_lookup( 'monitor' , 'global' ),
+  $monitor_tool            = params_lookup( 'monitor_tool' , 'global' ),
+  $monitor_target          = params_lookup( 'monitor_target' , 'global' ),
+  $firewall_src            = undef
 ) {
 
   include ::redis::install
@@ -185,5 +189,24 @@ define redis::server (
     enable     => $enabled,
     hasstatus  => true,
     hasrestart => true,
+  }
+
+  monitor::port { "redis_tcp_${redis_port}":
+    protocol => 'tcp',
+    port     => $redis_port,
+    target   => $redis::monitor_target,
+    tool     => $redis::monitor_tool,
+    enable   => $redis::manage_monitor,
+  }
+
+  if $firewall_src != undef {
+    firewall::rule { "redis_tcp_${redis_port}":
+      source      => $firewall_src,
+      port        => $redis_port,
+      protocol    => 'tcp',
+      action      => 'allow',
+      direction   => 'input',
+      enable      => true
+    }
   }
 }
